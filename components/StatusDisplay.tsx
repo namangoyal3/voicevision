@@ -43,7 +43,7 @@ const STATE_CONFIG: Record<AppState, { label: string; color: string; animate: bo
   },
 };
 
-export function StatusDisplay({ state, transcript, error, isContinuous }: StatusDisplayProps) {
+export function StatusDisplay({ state, transcript, error, isContinuous, isChatMode }: StatusDisplayProps) {
   const config = STATE_CONFIG[state];
 
   return (
