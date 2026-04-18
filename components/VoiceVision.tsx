@@ -10,24 +10,30 @@ import { StatusDisplay, type AppState } from './StatusDisplay';
 
 export function VoiceVision() {
   const [appState, setAppState] = useState<AppState>('initializing');
+  const [isContinuous, setIsContinuous] = useState(false);
   const [lastTranscript, setLastTranscript] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const isProcessingRef = useRef(false);
+  const lastProcessedTextRef = useRef('');
 
   const { videoRef, isReady: cameraReady, error: cameraError, captureFrame, startCamera } = useCamera();
 
   const onPlaybackEnd = useCallback(() => {
-    setAppState('listening');
+    setAppState(isContinuous ? 'processing' : 'listening');
     isProcessingRef.current = false;
-  }, []);
+  }, [isContinuous]);
 
   const { isPlaying, playAudio, speakFallback, stop: stopAudio } = useAudioPlayer(onPlaybackEnd);
 
   const processImage = useCallback(
-    async (mode: 'read' | 'describe') => {
-      if (isProcessingRef.current) return;
+    async (mode: 'read' | 'describe' | 'continuous' = 'describe') => {
+      if (isProcessingRef.current && mode !== 'continuous') return;
+      if (mode === 'continuous' && (isProcessingRef.current || isPlaying)) return;
+
       isProcessingRef.current = true;
-      setAppState('processing');
+      if (mode !== 'continuous') {
+        setAppState('processing');
+      }
 
       try {
         // Capture frame
@@ -57,10 +63,21 @@ export function VoiceVision() {
           textToSpeak = visionData.description;
         }
 
+        // In continuous mode, don't repeat the exact same description
+        if (mode === 'continuous' && textToSpeak === lastProcessedTextRef.current) {
+          isProcessingRef.current = false;
+          return;
+        }
+
         if (!textToSpeak) {
+          if (mode === 'continuous') {
+            isProcessingRef.current = false;
+            return;
+          }
           textToSpeak = "I couldn't detect anything clearly. Try moving closer or adjusting the lighting.";
         }
 
+        lastProcessedTextRef.current = textToSpeak;
         setAppState('speaking');
 
         // Try ElevenLabs TTS first
@@ -83,6 +100,10 @@ export function VoiceVision() {
         // Fallback to browser TTS
         await speakFallback(textToSpeak);
       } catch (error) {
+        if (mode === 'continuous') {
+          isProcessingRef.current = false;
+          return; // Ignore errors in continuous mode to avoid annoying the user
+        }
         const message = error instanceof Error ? error.message : 'Something went wrong';
         setErrorMessage(message);
         setAppState('error');
@@ -91,7 +112,7 @@ export function VoiceVision() {
         await speakFallback(`Error: ${message}`);
       }
     },
-    [captureFrame, playAudio, speakFallback]
+    [captureFrame, isPlaying, playAudio, speakFallback]
   );
 
   const handleVoiceResult = useCallback(
@@ -108,8 +129,17 @@ export function VoiceVision() {
         case 'describe':
           processImage('describe');
           break;
+        case 'start_continuous':
+          setIsContinuous(true);
+          speakFallback('Starting real-time monitoring. I will describe what I see every few seconds.');
+          break;
+        case 'stop_continuous':
+          setIsContinuous(false);
+          speakFallback('Stopping real-time monitoring.');
+          break;
         case 'stop':
           stopAudio();
+          setIsContinuous(false);
           setAppState('listening');
           isProcessingRef.current = false;
           break;
@@ -126,7 +156,7 @@ export function VoiceVision() {
           break;
       }
     },
-    [processImage, stopAudio, speakFallback]
+    [processImage, stopAudio, speakFallback, isContinuous]
   );
 
   const { isListening, isSupported, error: voiceError, startListening, stopListening } =
@@ -147,6 +177,19 @@ export function VoiceVision() {
       stopListening();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle continuous monitoring interval
+  useEffect(() => {
+    if (!isContinuous || isPlaying || isProcessingRef.current) return;
+
+    const interval = setInterval(() => {
+      if (!isProcessingRef.current && !isPlaying) {
+        processImage('continuous');
+      }
+    }, 5000); // Check every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [isContinuous, isPlaying, processImage]);
 
   // Handle tap-to-capture
   useEffect(() => {
@@ -178,6 +221,7 @@ export function VoiceVision() {
         state={appState}
         transcript={lastTranscript}
         error={errorMessage || voiceError || undefined}
+        isContinuous={isContinuous}
       />
 
       {/* Screen reader announcements */}

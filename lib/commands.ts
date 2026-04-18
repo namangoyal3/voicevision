@@ -1,4 +1,4 @@
-export type CommandType = 'read' | 'describe' | 'stop' | 'help' | 'unknown';
+export type CommandType = 'read' | 'describe' | 'stop' | 'help' | 'start_continuous' | 'stop_continuous' | 'unknown';
 
 interface ParsedCommand {
   type: CommandType;
@@ -28,6 +28,25 @@ const COMMAND_PATTERNS: { type: CommandType; patterns: RegExp[] }[] = [
       /\bwhat's in front\b/i,
       /\bwhat is in front\b/i,
       /\blook\b/i,
+    ],
+  },
+  {
+    type: 'start_continuous',
+    patterns: [
+      /\bstart watching\b/i,
+      /\bcontinuous mode\b/i,
+      /\bwatch continuously\b/i,
+      /\bkeep watching\b/i,
+      /\bmonitor\b/i,
+      /\breal time\b/i,
+    ],
+  },
+  {
+    type: 'stop_continuous',
+    patterns: [
+      /\bstop watching\b/i,
+      /\bdisable continuous\b/i,
+      /\bend monitoring\b/i,
     ],
   },
   {
@@ -66,4 +85,4 @@ export function parseCommand(transcript: string): ParsedCommand {
 }
 
 export const HELP_TEXT =
-  'You can say: "Read this" to read text in front of you. "What do you see" to describe your surroundings. "Stop" to cancel. "Help" for these instructions.';
+  'You can say: "Read this" to read text. "What do you see" to describe. "Start watching" for real-time monitoring. "Stop" to cancel. "Help" for these instructions.';

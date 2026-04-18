@@ -1,11 +1,12 @@
 'use client';
 
-export type AppState = 'initializing' | 'listening' | 'processing' | 'speaking' | 'error';
+export type AppState = 'initializing' | 'listening' | 'processing' | 'speaking' | 'error' | 'monitoring';
 
 interface StatusDisplayProps {
   state: AppState;
   transcript?: string;
   error?: string;
+  isContinuous?: boolean;
 }
 
 const STATE_CONFIG: Record<AppState, { label: string; color: string; animate: boolean }> = {
@@ -34,9 +35,14 @@ const STATE_CONFIG: Record<AppState, { label: string; color: string; animate: bo
     color: 'text-red-400',
     animate: false,
   },
+  monitoring: {
+    label: 'Monitoring...',
+    color: 'text-cyan-400',
+    animate: true,
+  },
 };
 
-export function StatusDisplay({ state, transcript, error }: StatusDisplayProps) {
+export function StatusDisplay({ state, transcript, error, isContinuous }: StatusDisplayProps) {
   const config = STATE_CONFIG[state];
 
   return (
@@ -51,6 +57,8 @@ export function StatusDisplay({ state, transcript, error }: StatusDisplayProps) 
               ? 'border-blue-400 shadow-[0_0_30px_rgba(96,165,250,0.4)]'
               : state === 'speaking'
               ? 'border-purple-400 shadow-[0_0_30px_rgba(192,132,252,0.4)]'
+              : state === 'monitoring'
+              ? 'border-cyan-400 shadow-[0_0_30px_rgba(34,211,238,0.4)]'
               : 'border-gray-600'
           }`}
         >
@@ -61,6 +69,8 @@ export function StatusDisplay({ state, transcript, error }: StatusDisplayProps) 
                   ? 'bg-green-400/30 animate-pulse'
                   : state === 'processing'
                   ? 'bg-blue-400/30 animate-spin'
+                  : state === 'monitoring'
+                  ? 'bg-cyan-400/30 animate-pulse'
                   : 'bg-gray-600/30 animate-pulse'
               }`}
             />
@@ -108,9 +118,21 @@ export function StatusDisplay({ state, transcript, error }: StatusDisplayProps) 
 
       {/* Help text */}
       {state === 'listening' && (
-        <p className="text-lg text-gray-500 max-w-sm">
-          Say &ldquo;read this&rdquo; or &ldquo;what do you see&rdquo;
-        </p>
+        <div className="space-y-2">
+          <p className="text-lg text-gray-500 max-w-sm">
+            Say &ldquo;read this&rdquo; or &ldquo;describe&rdquo;
+          </p>
+          <p className="text-sm text-gray-600">
+            Or say &ldquo;start watching&rdquo; for real-time mode
+          </p>
+        </div>
+      )}
+
+      {isContinuous && state !== 'initializing' && (
+        <div className="absolute top-8 right-8 flex items-center gap-2 bg-cyan-400/10 border border-cyan-400/20 px-4 py-2 rounded-full">
+          <div className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+          <span className="text-cyan-400 font-medium text-sm tracking-wider uppercase">Live Monitoring</span>
+        </div>
       )}
 
       {/* Tap fallback */}
