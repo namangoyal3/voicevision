@@ -11,6 +11,7 @@ import { StatusDisplay, type AppState } from './StatusDisplay';
 export function VoiceVision() {
   const [appState, setAppState] = useState<AppState>('initializing');
   const [isContinuous, setIsContinuous] = useState(false);
+  const [isChatMode, setIsChatMode] = useState(false);
   const [lastTranscript, setLastTranscript] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const isProcessingRef = useRef(false);
@@ -19,11 +20,56 @@ export function VoiceVision() {
   const { videoRef, isReady: cameraReady, error: cameraError, captureFrame, startCamera } = useCamera();
 
   const onPlaybackEnd = useCallback(() => {
-    setAppState(isContinuous ? 'processing' : 'listening');
+    setAppState('listening');
     isProcessingRef.current = false;
-  }, [isContinuous]);
+  }, []);
 
   const { isPlaying, playAudio, speakFallback, stop: stopAudio } = useAudioPlayer(onPlaybackEnd);
+
+  const processChat = useCallback(
+    async (message: string) => {
+      if (isProcessingRef.current) return;
+      isProcessingRef.current = true;
+      setAppState('processing');
+
+      try {
+        const chatResponse = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message,
+            context: lastProcessedTextRef.current,
+          }),
+        });
+
+        if (!chatResponse.ok) throw new Error('Failed to get response');
+        const { reply } = await chatResponse.json();
+
+        setAppState('speaking');
+
+        try {
+          const ttsResponse = await fetch('/api/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: reply }),
+          });
+
+          if (ttsResponse.ok) {
+            const audioData = await ttsResponse.arrayBuffer();
+            await playAudio(audioData);
+            return;
+          }
+        } catch {}
+
+        await speakFallback(reply);
+      } catch (error) {
+        setAppState('error');
+        await speakFallback('I encountered an error while chatting.');
+        isProcessingRef.current = false;
+      }
+    },
+    [playAudio, speakFallback]
+  );
 
   const processImage = useCallback(
     async (mode: 'read' | 'describe' | 'continuous' = 'describe') => {
@@ -120,6 +166,18 @@ export function VoiceVision() {
       if (isProcessingRef.current) return;
 
       setLastTranscript(transcript);
+
+      // If already in chat mode, just process the chat unless it's a stop command
+      if (isChatMode) {
+        if (/\bstop\b/i.test(transcript) || /\bexit\b/i.test(transcript) || /\bcancel\b/i.test(transcript)) {
+          setIsChatMode(false);
+          speakFallback('Exiting chat mode.');
+          return;
+        }
+        processChat(transcript);
+        return;
+      }
+
       const command = parseCommand(transcript);
 
       switch (command.type) {
@@ -137,9 +195,14 @@ export function VoiceVision() {
           setIsContinuous(false);
           speakFallback('Stopping real-time monitoring.');
           break;
+        case 'chat':
+          setIsChatMode(true);
+          speakFallback('Sure, what would you like to talk about? I can also answer questions about what I see.');
+          break;
         case 'stop':
           stopAudio();
           setIsContinuous(false);
+          setIsChatMode(false);
           setAppState('listening');
           isProcessingRef.current = false;
           break;
@@ -149,14 +212,14 @@ export function VoiceVision() {
           speakFallback(HELP_TEXT);
           break;
         default:
-          // Unknown command — try describing anyway
-          if (transcript.length > 2) {
+          // Unknown command — try describing anyway if not too short
+          if (transcript.length > 5) {
             processImage('describe');
           }
           break;
       }
     },
-    [processImage, stopAudio, speakFallback, isContinuous]
+    [processImage, processChat, stopAudio, speakFallback, isChatMode]
   );
 
   const { isListening, isSupported, error: voiceError, startListening, stopListening } =
@@ -222,13 +285,14 @@ export function VoiceVision() {
         transcript={lastTranscript}
         error={errorMessage || voiceError || undefined}
         isContinuous={isContinuous}
+        isChatMode={isChatMode}
       />
 
       {/* Screen reader announcements */}
       <div className="sr-only" aria-live="assertive">
-        {appState === 'listening' && 'VoiceVision is ready. Say a command or tap the screen.'}
-        {appState === 'processing' && `Processing your request: ${lastTranscript}`}
-        {!isSupported && 'Speech recognition is not supported in this browser. Please use Chrome on Android.'}
+        {appState === 'listening' && (isChatMode ? 'Chatting mode active.' : 'VoiceVision is ready.')}
+        {appState === 'processing' && `Processing...`}
+        {!isSupported && 'Speech recognition is not supported.'}
       </div>
     </div>
   );

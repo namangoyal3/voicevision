@@ -1,4 +1,4 @@
-export type CommandType = 'read' | 'describe' | 'stop' | 'help' | 'start_continuous' | 'stop_continuous' | 'unknown';
+export type CommandType = 'read' | 'describe' | 'stop' | 'help' | 'start_continuous' | 'stop_continuous' | 'chat' | 'unknown';
 
 interface ParsedCommand {
   type: CommandType;
@@ -68,6 +68,15 @@ const COMMAND_PATTERNS: { type: CommandType; patterns: RegExp[] }[] = [
       /\binstructions\b/i,
     ],
   },
+  {
+    type: 'chat',
+    patterns: [
+      /\btalk\b/i,
+      /\bchat\b/i,
+      /\bconversation\b/i,
+      /\bquestion\b/i,
+    ],
+  },
 ];
 
 export function parseCommand(transcript: string): ParsedCommand {
@@ -85,4 +94,4 @@ export function parseCommand(transcript: string): ParsedCommand {
 }
 
 export const HELP_TEXT =
-  'You can say: "Read this" to read text. "What do you see" to describe. "Start watching" for real-time monitoring. "Stop" to cancel. "Help" for these instructions.';
+  'You can say: "Read this" to read text. "Describe" for a scene description. "Start watching" for real-time monitoring. "Talk" to chat with me. "Stop" to cancel. "Help" for these instructions.';
