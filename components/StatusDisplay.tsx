@@ -7,6 +7,7 @@ interface StatusDisplayProps {
   transcript?: string;
   error?: string;
   isContinuous?: boolean;
+  isChatMode?: boolean;
 }
 
 const STATE_CONFIG: Record<AppState, { label: string; color: string; animate: boolean }> = {
@@ -132,6 +133,13 @@ export function StatusDisplay({ state, transcript, error, isContinuous }: Status
         <div className="absolute top-8 right-8 flex items-center gap-2 bg-cyan-400/10 border border-cyan-400/20 px-4 py-2 rounded-full">
           <div className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
           <span className="text-cyan-400 font-medium text-sm tracking-wider uppercase">Live Monitoring</span>
+        </div>
+      )}
+
+      {isChatMode && state !== 'initializing' && (
+        <div className="absolute top-8 left-8 flex items-center gap-2 bg-purple-400/10 border border-purple-400/20 px-4 py-2 rounded-full">
+          <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+          <span className="text-purple-400 font-medium text-sm tracking-wider uppercase">Conversation</span>
         </div>
       )}
 
